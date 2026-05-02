@@ -4,3 +4,4 @@ python-dotenv
 python-docx
 PyPDF2
 pydub
+aiohttp-socks

@@ -20,6 +20,8 @@ from google.genai import types as genai_types
 import docx
 import PyPDF2
 
+from aiogram.client.session.aiohttp import AiohttpSession
+
 # Load environment variables
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -33,8 +35,12 @@ logging.basicConfig(level=logging.INFO)
 client = genai.Client(api_key=GEMINI_API_KEY)
 MODEL_NAME = "gemini-3.1-pro-preview"
 
-# Initialize bot and dispatcher
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
+# Setup Bot with Proxy for PythonAnywhere (Free Account support)
+session = None
+if os.environ.get('PYTHONANYWHERE_DOMAIN'):
+    session = AiohttpSession(proxy="http://proxy.server:3128")
+
+bot = Bot(token=TELEGRAM_BOT_TOKEN, session=session)
 dp = Dispatcher(storage=MemoryStorage())
 
 # States for admin actions
@@ -373,18 +379,41 @@ async def handle_final_answer(message, answer, lang, product_hint=None):
         log_unanswered_question(message.text or "Voice")
         await message.answer(FALLBACK_MESSAGE_UZ if lang == "uz" else FALLBACK_MESSAGE_RU)
         return
+    
     fb_builder = InlineKeyboardBuilder()
     fb_builder.button(text="👍", callback_data="fb_up"); fb_builder.button(text="👎", callback_data="fb_down")
+    
+    # 1. Extract IMAGE_URL if provided by AI
+    image_url = None
+    if "IMAGE_URL:" in answer:
+        import re
+        match = re.search(r"IMAGE_URL:\s*(https?://[^\s\n]+)", answer)
+        if match:
+            image_url = match.group(1)
+            # Remove the tag from the text
+            answer = answer.replace(match.group(0), "").strip()
+
+    # 2. Check local image if no AI image found
     prod = product_hint
-    if not prod:
+    if not image_url and not prod:
         for p in get_product_list():
             if p.lower() in answer.lower()[:100]: prod = p; break
-    if prod:
+    
+    if not image_url and prod:
         update_stats(prod)
         img_path = os.path.join(IMAGES_DIR, f"{prod}.jpg")
         if os.path.exists(img_path):
             await message.answer_photo(types.FSInputFile(img_path), caption=answer, reply_markup=fb_builder.as_markup())
             return
+            
+    # 3. Send AI image if found
+    if image_url:
+        try:
+            await message.answer_photo(photo=image_url, caption=answer, reply_markup=fb_builder.as_markup())
+            return
+        except Exception as e:
+            logging.error(f"Failed to send AI image: {e}")
+
     await message.answer(answer, reply_markup=fb_builder.as_markup())
 
 async def main():
