@@ -3,6 +3,7 @@ import asyncio
 import logging
 import json
 from datetime import datetime
+import re
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -131,17 +132,17 @@ async def cmd_admin(message: types.Message):
         return
     
     active = is_bot_active()
-    status_text = "🟢 ACTIVE" if active else "😴 SLEEP (Tejamkorlik)"
+    status_text = "🟢 ACTIVE" if active else "😴 SLEEP"
     
     builder = InlineKeyboardBuilder()
     builder.button(text=f"Bot Holati: {status_text}", callback_data="admin_toggle_status")
     builder.button(text="📋 Javobsiz savollar", callback_data="admin_unanswered")
     builder.button(text="📊 Statistika", callback_data="admin_stats")
     builder.button(text="⚙️ Mahsulotlarni boshqarish", callback_data="admin_manage")
-    builder.button(text="📢 Xabar yuborish (Broadcast)", callback_data="admin_broadcast")
+    builder.button(text="📢 Broadcast", callback_data="admin_broadcast")
     builder.button(text="🧠 System Prompt", callback_data="admin_prompt")
     builder.adjust(1)
-    await message.answer("🛠 Markaziy Admin Paneli:", reply_markup=builder.as_markup())
+    await message.answer("🛠 Admin Panel:", reply_markup=builder.as_markup())
 
 @dp.message(Command("products"))
 async def cmd_products(message: types.Message):
@@ -168,7 +169,7 @@ async def toggle_status(callback: types.CallbackQuery):
     current = settings.get("active", True)
     settings["active"] = not current
     save_json(SETTINGS_FILE, settings)
-    await callback.answer(f"Bot {'ishga tushirildi' if not current else 'uyquga ketdi'}")
+    await callback.answer(f"Bot {'Active' if not current else 'Sleep'}")
     await cmd_admin(callback.message)
     await callback.message.delete()
 
@@ -177,7 +178,7 @@ async def set_language(callback: types.CallbackQuery):
     lang = callback.data.split("_")[1]
     user_languages[callback.from_user.id] = lang
     await callback.answer()
-    msg = "🔍 Savolingizni yozing yoki ovozli xabar yuboring!" if lang == "uz" else "🔍 Напишите вопрос!"
+    msg = "🔍 Savolingizni yozing!" if lang == "uz" else "🔍 Напишите ваш вопрос!"
     await callback.message.answer(f"✅ {msg}\n📦 /products")
 
 @dp.callback_query(F.data.startswith("prod_"))
@@ -185,12 +186,20 @@ async def process_product_click(callback: types.CallbackQuery):
     if not is_bot_active() and str(callback.from_user.id) != str(ADMIN_ID):
         await callback.answer("😴 Bot uyquda.", show_alert=True)
         return
+    
     product_name = callback.data.split("_")[1]
     lang = user_languages.get(callback.from_user.id, "uz")
-    await callback.answer()
+    
+    try: await callback.answer()
+    except: pass
+        
     update_stats(product_name)
-    query = f"{product_name} haqida ma'lumot ber" if lang == "uz" else f"Инфо o {product_name}"
+    query = f"{product_name} haqida ma'lumot ber" if lang == "uz" else f"Инфо о {product_name}"
+    
+    wait_msg = await callback.message.answer("🔄 Qidirilmoqda..." if lang == "uz" else "🔄 Поиск...")
     await handle_ai_response(callback.message, query, lang, product_name)
+    try: await wait_msg.delete()
+    except: pass
 
 @dp.callback_query(F.data == "admin_manage")
 async def admin_manage_products(callback: types.CallbackQuery):
@@ -220,7 +229,7 @@ async def edit_product_start(callback: types.CallbackQuery, state: FSMContext):
     prod = callback.data.split("_")[1]
     await state.update_data(edit_target=prod)
     await state.set_state(AdminStates.waiting_for_edit_content)
-    await callback.message.answer(f"📝 **{prod.capitalize()}** uchun yangi matn:")
+    await callback.message.answer(f"📝 **{prod.capitalize()}** uchun yangi matnni yuboring:")
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("rename_"))
@@ -228,7 +237,7 @@ async def rename_product_start(callback: types.CallbackQuery, state: FSMContext)
     prod = callback.data.split("_")[1]
     await state.update_data(rename_target=prod)
     await state.set_state(AdminStates.waiting_for_new_name)
-    await callback.message.answer(f"🏷 **{prod.capitalize()}** uchun yangi nom:")
+    await callback.message.answer(f"🏷 **{prod.capitalize()}** uchun yangi nomni yuboring:")
     await callback.answer()
 
 @dp.callback_query(F.data == "admin_broadcast")
@@ -247,23 +256,12 @@ async def prompt_edit_start(callback: types.CallbackQuery, state: FSMContext):
 @dp.callback_query(F.data == "admin_back")
 async def admin_back(callback: types.CallbackQuery):
     await callback.message.delete()
-    await cmd_admin(callback.message)
-    await callback.answer()
-
-@dp.callback_query(F.data == "admin_stats")
-async def show_stats(callback: types.CallbackQuery):
-    stats = load_json(STATS_FILE)
-    res = "📊 Statistika:\n\n"
-    for p, c in sorted(stats.items(), key=lambda x: x[1], reverse=True): res += f"- {p.capitalize()}: {c}\n"
-    await callback.message.answer(res or "Bo'sh")
-    await callback.answer()
-
-@dp.callback_query(F.data == "admin_unanswered")
-async def show_unanswered(callback: types.CallbackQuery):
-    if os.path.exists("unanswered_questions.txt"):
-        with open("unanswered_questions.txt", "r", encoding="utf-8") as f:
-            content = f.read()
-            await callback.message.answer(f"📝 Javobsiz:\n\n{content[:4000] or 'Yoq'}")
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📋 Javobsiz", callback_data="admin_unanswered")
+    builder.button(text="📊 Stats", callback_data="admin_stats")
+    builder.button(text="⚙️ Manage", callback_data="admin_manage")
+    builder.adjust(1)
+    await callback.message.answer("🛠 Admin Panel:", reply_markup=builder.as_markup())
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("fb_"))
@@ -320,7 +318,7 @@ async def handle_document(message: types.Message):
         for page in PyPDF2.PdfReader(save_path).pages: text += page.extract_text()
     if text:
         with open(os.path.join(PRODUCTS_DIR, message.document.file_name.rsplit('.',1)[0].lower()+".md"), "w", encoding="utf-8") as f: f.write(text)
-        await message.answer("✅")
+        await message.answer("✅ Qo'shildi.")
     os.remove(save_path)
 
 # --- TEXT HANDLER ---
@@ -340,7 +338,7 @@ async def handle_text(message: types.Message, state: FSMContext):
         os.rename(os.path.join(PRODUCTS_DIR, f"{old_name}.md"), os.path.join(PRODUCTS_DIR, f"{new_name}.md"))
         old_img = os.path.join(IMAGES_DIR, f"{old_name}.jpg")
         if os.path.exists(old_img): os.rename(old_img, os.path.join(IMAGES_DIR, f"{new_name}.jpg"))
-        await message.answer(f"✅ O'zgardi."); await state.clear(); return
+        await message.answer(f"✅ Nom o'zgardi."); await state.clear(); return
 
     if curr_state == AdminStates.waiting_for_broadcast:
         for user_id in all_users:
@@ -383,36 +381,34 @@ async def handle_final_answer(message, answer, lang, product_hint=None):
     fb_builder = InlineKeyboardBuilder()
     fb_builder.button(text="👍", callback_data="fb_up"); fb_builder.button(text="👎", callback_data="fb_down")
     
-    # 1. Extract IMAGE_URL if provided by AI
     image_url = None
     if "IMAGE_URL:" in answer:
-        import re
         match = re.search(r"IMAGE_URL:\s*(https?://[^\s\n]+)", answer)
         if match:
             image_url = match.group(1)
-            # Remove the tag from the text
             answer = answer.replace(match.group(0), "").strip()
 
-    # 2. Check local image if no AI image found
     prod = product_hint
     if not image_url and not prod:
         for p in get_product_list():
             if p.lower() in answer.lower()[:100]: prod = p; break
     
     if not image_url and prod:
-        update_stats(prod)
         img_path = os.path.join(IMAGES_DIR, f"{prod}.jpg")
         if os.path.exists(img_path):
-            await message.answer_photo(types.FSInputFile(img_path), caption=answer, reply_markup=fb_builder.as_markup())
-            return
+            try:
+                await message.answer_photo(types.FSInputFile(img_path), caption=answer, reply_markup=fb_builder.as_markup())
+                return
+            except: pass
             
-    # 3. Send AI image if found
     if image_url:
         try:
             await message.answer_photo(photo=image_url, caption=answer, reply_markup=fb_builder.as_markup())
             return
         except Exception as e:
-            logging.error(f"Failed to send AI image: {e}")
+            logging.error(f"Failed AI image: {e}")
+            await message.answer(f"{answer}\n\n(Rasm yuklashda xato)", reply_markup=fb_builder.as_markup())
+            return
 
     await message.answer(answer, reply_markup=fb_builder.as_markup())
 
