@@ -1,0 +1,11 @@
+- **Mahsulot nomi**: Kollagen Marine Complex
+- **Mahsulot turi**: Oqsil qo'shimchasi
+- **Tarkibi**: Dengiz kollageni (I va III tur), Gialuron kislotasi, Vitamin C.
+- **Nima uchun ishlatiladi**: Teri elastikligini oshirish, ajinlarni kamaytirish va bo'g'imlar harakatchanligini yaxshilashga yordam berishi mumkin.
+- **Qanday qabul qilinadi**: 1 o'lchov qoshig'ini (5-10g) suvda eritib ichish.
+- **Qachon ichiladi**: Ertalab och qoringa, ovqatdan 30 daqiqa oldin.
+- **Kimlarga tavsiya qilinadi**: Yoshini saqlab qolmoqchi bo'lganlar, sport bilan shug'ullanuvchilar.
+- **Kimlarga ehtiyot bo'lish kerak**: Dengiz mahsulotlariga allergiyasi borlar.
+- **Tez-tez so'raladigan savollar**:
+  - Savol: Qachon natija ko'rinadi? Javob: Odatda 1-3 oylik muntazam qabuldan so'ng sezilarli bo'ladi.
+- **Telegram uchun qisqa javob**: Kollagen Marine - teri va bo'g'imlar salomatligi uchun. Kuniga 1 mahal ertalab och qoringa ichiladi.

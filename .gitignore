@@ -1,0 +1,16 @@
+# Secrets
+.env
+*.json
+unanswered_questions.txt
+
+# Python
+__pycache__/
+venv/
+.venv/
+*.pyc
+
+# Local data
+images/*
+!images/.gitkeep
+products/*
+!products/*.md

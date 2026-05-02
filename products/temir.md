@@ -1,0 +1,11 @@
+- **Mahsulot nomi**: Temir (Iron) Bisglycinate
+- **Mahsulot turi**: Mineral (Chelated Iron)
+- **Tarkibi**: Temir bisglisinat (25mg), Vitamin C.
+- **Nima uchun ishlatiladi**: Gemoglobin miqdorini oshirish va kamqonlik (anemiya) alomatlarini kamaytirishga yordam berishi mumkin.
+- **Qanday qabul qilinadi**: Kuniga 1 kapsula.
+- **Qachon ichiladi**: Ovqatdan 1 soat oldin yoki 2 soat keyin (yaxshiroq so'rilishi uchun).
+- **Kimlarga tavsiya qilinadi**: Temir moddasi yetishmaydigan ayollar, sportchilar.
+- **Kimlarga ehtiyot bo'lish kerak**: Gemoxromatoz (temir ko'pligi) kasalligi borlar.
+- **Tez-tez so'raladigan savollar**:
+  - Savol: Oshqozonga og'irlik qiladimi? Javob: Bisglisinat shakli oshqozon-ichak trakti uchun eng yumshoq hisoblanadi.
+- **Telegram uchun qisqa javob**: Temir Bisglycinate - kamqonlikda yordam berishi mumkin. Kuniga 1 kapsula och qoringa ichish tavsiya etiladi.
