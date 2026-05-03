@@ -100,6 +100,11 @@ def load_system_prompt():
             return f.read()
     return "Siz yordamchisiz."
 
+def log_unanswered_question(question):
+    with open("unanswered_questions.txt", "a", encoding="utf-8") as f:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        f.write(f"[{timestamp}] {question}\n")
+
 def get_product_list():
     if not os.path.exists(PRODUCTS_DIR): return []
     return [f.replace(".md", "") for f in sorted(os.listdir(PRODUCTS_DIR)) if f.endswith(".md")]
@@ -374,7 +379,10 @@ async def handle_ai_response(message, query, lang, product_hint=None):
     try:
         config = None
         if needs_search:
-            config = genai_types.GenerateContentConfig(tools=[genai_types.Tool(google_search=genai_types.GoogleSearchRetrieval())])
+            # Fix: Using GoogleSearch() instead of GoogleSearchRetrieval()
+            config = genai_types.GenerateContentConfig(
+                tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
+            )
         response = client.models.generate_content(
             model="gemini-3.1-pro-preview",
             contents=f"{system_prompt}\n\nOldingi suhbat:\n{history}\n\nYangi savol: {query}",
