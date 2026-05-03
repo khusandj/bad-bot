@@ -363,11 +363,8 @@ async def handle_ai_response(message, query, lang, product_hint=None):
     context = load_knowledge_base()
     system_prompt = load_system_prompt().format(context=context)
 
-    # Check if internet search is really needed (saves time)
+    # Search is only needed if price or image is explicitly requested
     needs_search = any(word in query.lower() for word in ["narx", "qancha", "uzum", "market", "rasm", "photo", "image", "цена", "сколько"])
-
-    # Use Flash for regular info, Pro only for complex searches
-    selected_model = MODEL_NAME_PRO if needs_search else MODEL_NAME_FAST
 
     try:
         config = None
@@ -377,7 +374,7 @@ async def handle_ai_response(message, query, lang, product_hint=None):
             )
 
         response = client.models.generate_content(
-            model=selected_model,
+            model=MODEL_NAME_PRO, # Using Pro as requested, but search is conditional
             contents=f"{system_prompt}\n\nFoydalanuvchi so'rovi: {query}",
             config=config
         )
