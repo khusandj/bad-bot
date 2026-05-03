@@ -426,7 +426,13 @@ async def handle_final_answer(message, answer, lang, product_hint=None):
 
 async def main():
     logging.info("Bot ishga tushmoqda...")
-    await dp.start_polling(bot)
+    while True:
+        try:
+            await dp.start_polling(bot)
+        except Exception as e:
+            logging.error(f"Polling error (503 or other): {e}")
+            logging.info("5 soniyadan so'ng qayta urinib ko'ramiz...")
+            await asyncio.sleep(5)
 
 if __name__ == "__main__":
     asyncio.run(main())
