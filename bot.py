@@ -34,7 +34,6 @@ logging.basicConfig(level=logging.INFO)
 
 # Initialize NEW Gemini Client
 client = genai.Client(api_key=GEMINI_API_KEY)
-MODEL_NAME = "gemini-3.1-pro-preview"
 
 # Setup Bot with Proxy for PythonAnywhere (Free Account support)
 session = None
@@ -109,9 +108,23 @@ def is_bot_active():
     settings = load_json(SETTINGS_FILE)
     return settings.get("active", True)
 
-# Store user settings
+# Store user settings and history
 user_languages = {}
+user_histories = {} # {user_id: [messages]}
+MAX_HISTORY = 6
 all_users = set()
+
+def get_user_context(user_id):
+    history = user_histories.get(user_id, [])
+    context_str = "\n".join([f"{'User' if i%2==0 else 'Bot'}: {msg}" for i, msg in enumerate(history)])
+    return context_str
+
+def add_to_history(user_id, message, is_bot=False):
+    if user_id not in user_histories:
+        user_histories[user_id] = []
+    user_histories[user_id].append(message)
+    if len(user_histories[user_id]) > MAX_HISTORY:
+        user_histories[user_id] = user_histories[user_id][-MAX_HISTORY:]
 
 # --- COMMAND HANDLERS ---
 
@@ -186,16 +199,12 @@ async def process_product_click(callback: types.CallbackQuery):
     if not is_bot_active() and str(callback.from_user.id) != str(ADMIN_ID):
         await callback.answer("😴 Bot uyquda.", show_alert=True)
         return
-    
     product_name = callback.data.split("_")[1]
     lang = user_languages.get(callback.from_user.id, "uz")
-    
     try: await callback.answer()
     except: pass
-        
     update_stats(product_name)
     query = f"{product_name} haqida ma'lumot ber" if lang == "uz" else f"Инфо о {product_name}"
-    
     wait_msg = await callback.message.answer("🔄 Qidirilmoqda..." if lang == "uz" else "🔄 Поиск...")
     await handle_ai_response(callback.message, query, lang, product_name)
     try: await wait_msg.delete()
@@ -281,23 +290,25 @@ async def handle_voice(message: types.Message):
         await message.answer("😴 Bot uyquda.")
         return
     lang = user_languages.get(message.from_user.id, "uz")
-    wait_msg = await message.answer("🎤 ..." if lang == "uz" else "🎤 ...")
+    wait_msg = await message.answer("🎤 ...")
     file = await bot.get_file(message.voice.file_id)
     save_path = f"voice_{message.from_user.id}.ogg"
     await bot.download_file(file.file_path, save_path)
     try:
         with open(save_path, "rb") as f: audio_data = f.read()
         context = load_knowledge_base()
+        history = get_user_context(message.from_user.id)
         system_prompt = load_system_prompt().format(context=context)
         response = client.models.generate_content(
-            model=MODEL_NAME,
+            model="gemini-3.1-pro-preview",
             contents=[genai_types.Content(parts=[
-                genai_types.Part.from_text(text=f"{system_prompt}\n\nAudio savolga javob ber. Til: {lang}"),
+                genai_types.Part.from_text(text=f"{system_prompt}\n\nTarix:\n{history}\n\nAudio savolga javob ber. Til: {lang}"),
                 genai_types.Part.from_bytes(data=audio_data, mime_type="audio/ogg")
             ])],
             config=genai_types.GenerateContentConfig(tools=[genai_types.Tool(google_search=genai_types.GoogleSearchRetrieval())])
         )
         await wait_msg.delete()
+        add_to_history(message.from_user.id, "Voice Message")
         await handle_final_answer(message, response.text.strip(), lang)
     except Exception as e:
         logging.error(f"Voice error: {e}")
@@ -326,7 +337,6 @@ async def handle_document(message: types.Message):
 @dp.message(F.text)
 async def handle_text(message: types.Message, state: FSMContext):
     curr_state = await state.get_state()
-    
     if curr_state == AdminStates.waiting_for_edit_content:
         data = await state.get_data(); prod = data['edit_target']
         with open(os.path.join(PRODUCTS_DIR, f"{prod}.md"), "w", encoding="utf-8") as f: f.write(message.text)
@@ -351,76 +361,57 @@ async def handle_text(message: types.Message, state: FSMContext):
         await message.answer("✅ Prompt yangilandi."); await state.clear(); return
 
     if not is_bot_active() and str(message.from_user.id) != str(ADMIN_ID):
-        await message.answer("😴 Bot hozir dam olmoqda (Sleep mode). Tokenlar tejalmoqda."); return
+        await message.answer("😴 Bot hozir dam olmoqda."); return
 
     lang = user_languages.get(message.from_user.id, "uz")
     await handle_ai_response(message, message.text, lang)
 
-MODEL_NAME_FAST = "gemini-3.1-pro-preview"
-MODEL_NAME_PRO = "gemini-3.1-pro-preview"
-
 async def handle_ai_response(message, query, lang, product_hint=None):
     context = load_knowledge_base()
+    history = get_user_context(message.from_user.id)
     system_prompt = load_system_prompt().format(context=context)
-
-    # Search is only needed if price or image is explicitly requested
     needs_search = any(word in query.lower() for word in ["narx", "qancha", "uzum", "market", "rasm", "photo", "image", "цена", "сколько"])
-
     try:
         config = None
         if needs_search:
-            config = genai_types.GenerateContentConfig(
-                tools=[genai_types.Tool(google_search=genai_types.GoogleSearchRetrieval())]
-            )
-
+            config = genai_types.GenerateContentConfig(tools=[genai_types.Tool(google_search=genai_types.GoogleSearchRetrieval())])
         response = client.models.generate_content(
-            model=MODEL_NAME_PRO, # Using Pro as requested, but search is conditional
-            contents=f"{system_prompt}\n\nFoydalanuvchi so'rovi: {query}",
+            model="gemini-3.1-pro-preview",
+            contents=f"{system_prompt}\n\nOldingi suhbat:\n{history}\n\nYangi savol: {query}",
             config=config
         )
+        add_to_history(message.from_user.id, query)
         await handle_final_answer(message, response.text.strip(), lang, product_hint)
     except Exception as e:
         logging.error(f"AI error: {e}")
         await message.answer("❌ Xatolik.")
 
 async def handle_final_answer(message, answer, lang, product_hint=None):
+    add_to_history(message.from_user.id, answer, is_bot=True)
     if "topilmadi" in answer.lower() or "не найдено" in answer.lower():
         log_unanswered_question(message.text or "Voice")
         await message.answer(FALLBACK_MESSAGE_UZ if lang == "uz" else FALLBACK_MESSAGE_RU)
         return
-    
     fb_builder = InlineKeyboardBuilder()
     fb_builder.button(text="👍", callback_data="fb_up"); fb_builder.button(text="👎", callback_data="fb_down")
-    
     image_url = None
     if "IMAGE_URL:" in answer:
-        match = re.search(r"IMAGE_URL:\s*(https?://[^\s\n]+)", answer)
-        if match:
-            image_url = match.group(1)
-            answer = answer.replace(match.group(0), "").strip()
-
+        match = re.search(r"IMAGE_URL:\s*(https?://[^\s\n]+)", answer); 
+        if match: image_url = match.group(1); answer = answer.replace(match.group(0), "").strip()
     prod = product_hint
     if not image_url and not prod:
         for p in get_product_list():
             if p.lower() in answer.lower()[:100]: prod = p; break
-    
     if not image_url and prod:
         img_path = os.path.join(IMAGES_DIR, f"{prod}.jpg")
         if os.path.exists(img_path):
-            try:
-                await message.answer_photo(types.FSInputFile(img_path), caption=answer, reply_markup=fb_builder.as_markup())
-                return
+            try: await message.answer_photo(types.FSInputFile(img_path), caption=answer, reply_markup=fb_builder.as_markup()); return
             except: pass
-            
     if image_url:
-        try:
-            await message.answer_photo(photo=image_url, caption=answer, reply_markup=fb_builder.as_markup())
-            return
+        try: await message.answer_photo(photo=image_url, caption=answer, reply_markup=fb_builder.as_markup()); return
         except Exception as e:
             logging.error(f"Failed AI image: {e}")
-            await message.answer(f"{answer}\n\n(Rasm yuklashda xato)", reply_markup=fb_builder.as_markup())
-            return
-
+            await message.answer(f"{answer}\n\n(Rasm yuklashda xato)", reply_markup=fb_builder.as_markup()); return
     await message.answer(answer, reply_markup=fb_builder.as_markup())
 
 async def main():
