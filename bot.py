@@ -38,7 +38,9 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 # Setup Bot with Proxy for PythonAnywhere (Free Account support)
 session = None
 if os.environ.get('PYTHONANYWHERE_DOMAIN'):
+    # Try with PythonAnywhere proxy
     session = AiohttpSession(proxy="http://proxy.server:3128")
+    logging.info("PythonAnywhere environment detected. Using proxy: http://proxy.server:3128")
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN, session=session)
 dp = Dispatcher(storage=MemoryStorage())
