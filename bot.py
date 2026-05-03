@@ -356,7 +356,7 @@ async def handle_text(message: types.Message, state: FSMContext):
     lang = user_languages.get(message.from_user.id, "uz")
     await handle_ai_response(message, message.text, lang)
 
-MODEL_NAME_FAST = "gemini-2.0-flash"
+MODEL_NAME_FAST = "gemini-3.1-flash-preview"
 MODEL_NAME_PRO = "gemini-3.1-pro-preview"
 
 async def handle_ai_response(message, query, lang, product_hint=None):
