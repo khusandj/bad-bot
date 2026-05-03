@@ -356,16 +356,30 @@ async def handle_text(message: types.Message, state: FSMContext):
     lang = user_languages.get(message.from_user.id, "uz")
     await handle_ai_response(message, message.text, lang)
 
-# --- AI LOGIC ---
+MODEL_NAME_FAST = "gemini-1.5-flash"
+MODEL_NAME_PRO = "gemini-1.5-pro" # Using 1.5 Pro for stability/speed
 
 async def handle_ai_response(message, query, lang, product_hint=None):
     context = load_knowledge_base()
     system_prompt = load_system_prompt().format(context=context)
+
+    # Check if internet search is really needed (saves time)
+    needs_search = any(word in query.lower() for word in ["narx", "qancha", "uzum", "market", "rasm", "photo", "image", "цена", "сколько"])
+
+    # Use Flash for regular info, Pro only for complex searches
+    selected_model = MODEL_NAME_PRO if needs_search else MODEL_NAME_FAST
+
     try:
+        config = None
+        if needs_search:
+            config = genai_types.GenerateContentConfig(
+                tools=[genai_types.Tool(google_search=genai_types.GoogleSearchRetrieval())]
+            )
+
         response = client.models.generate_content(
-            model=MODEL_NAME,
+            model=selected_model,
             contents=f"{system_prompt}\n\nFoydalanuvchi so'rovi: {query}",
-            config=genai_types.GenerateContentConfig(tools=[genai_types.Tool(google_search=genai_types.GoogleSearchRetrieval())])
+            config=config
         )
         await handle_final_answer(message, response.text.strip(), lang, product_hint)
     except Exception as e:
